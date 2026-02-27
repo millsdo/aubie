@@ -299,7 +299,7 @@
     </div>
   </div>
 
-  <div class="footer">AUBIE TRACKER · DATA VIA ADS-B EXCHANGE · WAR EAGLE!</div>
+  <div class="footer">AUBIE TRACKER · DATA VIA ADS-B EXCHANGE · WAR EAGLE<span id="secret-btn" style="cursor: pointer; user-select: none;">!</span></div>
 
   <script>
     const RUNWAY_HEADINGS = {
@@ -676,6 +676,11 @@
       });
     });
 
+    // Secret button - track N10AU and N20AU on ADS-B Exchange
+    document.getElementById('secret-btn').addEventListener('click', () => {
+      window.open('https://globe.adsbexchange.com/?icao=a8b9e4,a8ba05', '_blank');
+    });
+    
     // Initialize
     fetchAWOS();
     setInterval(fetchAWOS, 600000); // Refresh every 10 minutes
