@@ -1,0 +1,94 @@
+<!--
+Drop this into your index.html (GitHub Pages).
+Replace RENDER_BASE with your Render service URL.
+-->
+
+<script>
+  const RENDER_BASE = "https://YOUR-SERVICE.onrender.com";  // <-- change
+  const STATION = "KAUO";                                   // <-- change
+
+  function calcFlightCategory(visibilitySm, ceilingFt) {
+    const vis = (typeof visibilitySm === "number" && isFinite(visibilitySm)) ? visibilitySm : null;
+    const ceil = (typeof ceilingFt === "number" && isFinite(ceilingFt)) ? ceilingFt : null;
+
+    if (vis !== null && vis < 1) return "LIFR";
+    if (ceil !== null && ceil < 500) return "LIFR";
+
+    if (vis !== null && vis < 3) return "IFR";
+    if (ceil !== null && ceil < 1000) return "IFR";
+
+    if (vis !== null && vis < 5) return "MVFR";
+    if (ceil !== null && ceil < 3000) return "MVFR";
+
+    if (vis !== null || ceil !== null) return "VFR";
+    return "VFR"; // default if missing
+  }
+
+  function extractCeilingFt(metarObj) {
+    const skies = metarObj?.sky_condition;
+    if (!Array.isArray(skies)) return null;
+
+    let ceil = null;
+    for (const layer of skies) {
+      const cover = (layer?.sky_cover || "").toUpperCase();
+      const base = Number(layer?.cloud_base_ft_agl);
+      const isCeilLayer = (cover === "BKN" || cover === "OVC" || cover === "VV");
+      if (isCeilLayer && isFinite(base)) {
+        if (ceil === null || base < ceil) ceil = base;
+      }
+    }
+    return ceil;
+  }
+
+  async function fetchMetar(station) {
+    const url = `${RENDER_BASE}/metar?ids=${encodeURIComponent(station)}`;
+    const arr = await fetch(url, { cache: "no-store" }).then(r => r.json());
+    return arr?.[0] || null;
+  }
+
+  async function updateAwosUI() {
+    const metar = await fetchMetar(STATION);
+    if (!metar) return;
+
+    // These IDs are examples — match them to your HTML.
+    // Wind
+    const wdir = metar.wdir;
+    const wspd = metar.wspd;
+    const wgst = metar.wgst;
+    document.getElementById("wind").textContent =
+      (wdir != null && wspd != null) ? `${wdir}° at ${wspd} kt${wgst ? " (G"+wgst+")" : ""}` : "N/A";
+
+    // Temp / Dewpoint
+    document.getElementById("temp").textContent = (metar.temp != null) ? `${metar.temp}°C` : "N/A";
+    document.getElementById("dewpoint").textContent = (metar.dewp != null) ? `${metar.dewp}°C` : "N/A";
+
+    // Altimeter / Visibility (hide rows if missing)
+    const altim = (metar.altim != null) ? Number(metar.altim) : null;
+    const vis = (metar.visib != null) ? Number(metar.visib) : null;
+
+    const rowAlt = document.getElementById("rowAltimeter");
+    const rowVis = document.getElementById("rowVisibility");
+
+    if (altim != null && isFinite(altim)) {
+      document.getElementById("altimeter").textContent = `${altim.toFixed(2)} inHg`;
+      if (rowAlt) rowAlt.style.display = "";
+    } else if (rowAlt) {
+      rowAlt.style.display = "none";
+    }
+
+    if (vis != null && isFinite(vis)) {
+      document.getElementById("visibility").textContent = `${vis} SM`;
+      if (rowVis) rowVis.style.display = "";
+    } else if (rowVis) {
+      rowVis.style.display = "none";
+    }
+
+    // Ceiling + Flight Category
+    const ceilingFt = extractCeilingFt(metar);
+    const fltCat = (metar.fltcat || "").toString().toUpperCase() || calcFlightCategory(vis, ceilingFt);
+    document.getElementById("flightCat").textContent = fltCat;
+  }
+
+  updateAwosUI();
+  setInterval(updateAwosUI, 60000);
+</script>
