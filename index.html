@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -421,11 +422,6 @@
       }
     }
 
-      } catch (e) {
-        console.error('AWOS fetch error:', e);
-        document.getElementById('awosData').textContent = 'Weather data unavailable - ' + e.message;
-      }
-    }
 
     function calculateWindComponents() {
       const heading = RUNWAY_HEADINGS[currentRunway];
