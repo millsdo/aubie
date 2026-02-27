@@ -26,6 +26,11 @@ app.options("/metar", (req, res) => {
   res.status(204).send("");
 });
 
+app.get("/", (req, res) => {
+  setCors(res);
+  res.status(200).send("awos-proxy is running. Try /health or /metar?ids=KAUO");
+});
+
 app.get("/metar", async (req, res) => {
   try {
     // Accept "ids=KAUO" or "ids=KAUO,KMEM" etc.
