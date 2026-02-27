@@ -54,3 +54,7 @@ app.get("/metar", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`awos-proxy listening on ${PORT}`);
 });
+app.get("/", (req, res) => {
+  setCors(res);
+  res.status(200).send("awos-proxy ok. Use /health or /metar?ids=KAUO");
+});
