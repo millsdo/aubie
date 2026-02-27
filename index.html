@@ -520,13 +520,10 @@
 
         if (typeof calculateWindComponents === "function") calculateWindComponents();
         if (typeof drawRunway === "function") drawRunway();
-    }
-
-catch (e) {
+      } catch (e) {
         console.error('AWOS fetch error:', e);
         document.getElementById('awosData').textContent = 'Weather data unavailable - ' + e.message;
       }
-    }
     }
 
     function calculateWindComponents() {
