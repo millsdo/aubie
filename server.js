@@ -4,29 +4,28 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 /**
- * CORS
- * Use Render env var ALLOWED_ORIGINS as a comma-separated list, e.g.:
- *   ALLOWED_ORIGINS=https://aubie-tracker.onrender.com,https://millsdo.github.io
+ * Supports BOTH:
+ *   ALLOWED_ORIGINS = "https://aubie-tracker.onrender.com,https://millsdo.github.io"
+ *   ALLOWED_ORIGIN  = "https://aubie-tracker.onrender.com"
  *
- * If you set ALLOWED_ORIGINS="*", it will allow all origins.
+ * If neither is set → allows all (for testing).
  */
-const ALLOWED_ORIGINS_RAW = (process.env.ALLOWED_ORIGINS || "*").trim();
+const ALLOWED =
+  (process.env.ALLOWED_ORIGINS && process.env.ALLOWED_ORIGINS.trim()) ||
+  (process.env.ALLOWED_ORIGIN && process.env.ALLOWED_ORIGIN.trim()) ||
+  "*";
 
 function setCors(req, res) {
   const origin = req.headers.origin;
 
-  if (ALLOWED_ORIGINS_RAW === "*") {
+  if (ALLOWED === "*") {
     res.setHeader("Access-Control-Allow-Origin", "*");
   } else if (origin) {
-    const allowed = new Set(
-      ALLOWED_ORIGINS_RAW
-        .split(",")
-        .map(s => s.trim())
-        .filter(Boolean)
+    const allowedSet = new Set(
+      ALLOWED.split(",").map(s => s.trim()).filter(Boolean)
     );
 
-    if (allowed.has(origin)) {
-      // Must echo the origin (cannot use "*" when credentials or multiple origins are involved)
+    if (allowedSet.has(origin)) {
       res.setHeader("Access-Control-Allow-Origin", origin);
       res.setHeader("Vary", "Origin");
     }
@@ -36,25 +35,21 @@ function setCors(req, res) {
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 }
 
-// Health check
-app.get("/health", (req, res) => {
-  setCors(req, res);
-  res.status(200).send("ok");
-});
-
-// Root info
 app.get("/", (req, res) => {
   setCors(req, res);
   res.status(200).send("awos-proxy is running. Try /health or /metar?ids=KAUO");
 });
 
-// Preflight
+app.get("/health", (req, res) => {
+  setCors(req, res);
+  res.status(200).send("ok");
+});
+
 app.options("/metar", (req, res) => {
   setCors(req, res);
   res.status(204).send("");
 });
 
-// METAR proxy
 app.get("/metar", async (req, res) => {
   try {
     const idsRaw = (req.query.ids || "KAUO").toString().toUpperCase();
