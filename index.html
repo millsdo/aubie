@@ -379,49 +379,155 @@
     }
 
     // Fetch KAUO METAR via your Render proxy (avoids browser CORS issues)
+    
+    // =========================
+    // AWOS / METAR (via Render proxy)
+    // =========================
+    const RENDER_BASE = "https://aubie.onrender.com"; // proxy base
+    const STATION = "KAUO";
+
+    function fmtTempC(v) {
+      if (v == null || !isFinite(Number(v))) return null;
+      return `${Number(v).toFixed(1)}°C`;
+    }
+
+    // AviationWeather JSON "altim" is hPa. Convert to inHg for AWOS-style.
+    function fmtAltimInHgFromHpa(hpa) {
+      if (hpa == null || !isFinite(Number(hpa))) return null;
+      const inHg = Number(hpa) * 0.0295299830714;
+      return `${inHg.toFixed(2)} inHg`;
+    }
+
+    // visib may be number, "10+", "10SM", "1 1/2SM", etc.
+    function fmtVisibility(metarObj) {
+      const v = metarObj?.visib;
+      if (v == null) return null;
+
+      if (typeof v === "number" && isFinite(v)) return `${v} mi`;
+
+      if (typeof v === "string") {
+        const s = v.trim();
+        if (s.endsWith("+")) return `${s} mi`;
+        const raw = s.toUpperCase();
+        if (raw.includes("SM")) return `${raw.replace("SM", "").trim()} mi`.replace(/\s+/g, " ");
+        const n = Number(s);
+        if (isFinite(n)) return `${n} mi`;
+        return `${s} mi`;
+      }
+      return null;
+    }
+
+    // AviationWeather JSON uses "clouds": [{cover, base}] and may also include other schemas.
+    function extractCeilingFt(metarObj) {
+      if (Array.isArray(metarObj?.clouds)) {
+        let ceil = null;
+        for (const layer of metarObj.clouds) {
+          const cover = (layer?.cover || "").toUpperCase();
+          const base = Number(layer?.base);
+          if ((cover === "BKN" || cover === "OVC" || cover === "VV") && isFinite(base)) {
+            if (ceil === null || base < ceil) ceil = base;
+          }
+        }
+        return ceil;
+      }
+
+      if (Array.isArray(metarObj?.sky_condition)) {
+        let ceil = null;
+        for (const layer of metarObj.sky_condition) {
+          const cover = (layer?.sky_cover || "").toUpperCase();
+          const base = Number(layer?.cloud_base_ft_agl);
+          if ((cover === "BKN" || cover === "OVC" || cover === "VV") && isFinite(base)) {
+            if (ceil === null || base < ceil) ceil = base;
+          }
+        }
+        return ceil;
+      }
+
+      return null;
+    }
+
+    function windFromMetar(metarObj) {
+      if (metarObj?.wdir != null && metarObj?.wspd != null) {
+        return {
+          dir: Number(metarObj.wdir),
+          spd: Number(metarObj.wspd),
+          gst: metarObj.wgst != null ? Number(metarObj.wgst) : null
+        };
+      }
+      const raw = (metarObj?.rawOb || metarObj?.raw_text || "").toString();
+      const m = raw.match(/\b(\d{3}|VRB)(\d{2,3})(?:G(\d{2,3}))?KT\b/);
+      if (!m) return { dir: null, spd: null, gst: null };
+      const dir = (m[1] === "VRB") ? null : Number(m[1]);
+      const spd = Number(m[2]);
+      const gst = m[3] ? Number(m[3]) : null;
+      return { dir: isFinite(dir) ? dir : null, spd: isFinite(spd) ? spd : null, gst: isFinite(gst) ? gst : null };
+    }
+
+    function calcFlightCategory(visibilitySm, ceilingFt) {
+      const vis = (typeof visibilitySm === "number" && isFinite(visibilitySm)) ? visibilitySm : null;
+      const ceil = (typeof ceilingFt === "number" && isFinite(ceilingFt)) ? ceilingFt : null;
+
+      if (vis !== null && vis < 1) return "LIFR";
+      if (ceil !== null && ceil < 500) return "LIFR";
+      if (vis !== null && vis < 3) return "IFR";
+      if (ceil !== null && ceil < 1000) return "IFR";
+      if (vis !== null && vis < 5) return "MVFR";
+      if (ceil !== null && ceil < 3000) return "MVFR";
+      if (vis !== null || ceil !== null) return "VFR";
+      return "VFR";
+    }
+
     async function fetchAWOS() {
       try {
         const url = `${RENDER_BASE}/metar?ids=${encodeURIComponent(STATION)}`;
         const response = await fetch(url, { cache: "no-store" });
         if (!response.ok) throw new Error(`METAR fetch failed: ${response.status}`);
         const arr = await response.json();
-        const metar = arr?.[0];
-        if (!metar) throw new Error("No METAR returned");
+        if (!Array.isArray(arr) || arr.length === 0) throw new Error("No METAR returned");
+        const metar = arr[0];
 
-        const wind = windFromMetar(metar);
-        weatherData.wind_speed = Math.round(wind.spd) || 0;
-        weatherData.wind_direction = Math.round(wind.dir) || 0;
+        const w = windFromMetar(metar);
+        if (typeof weatherData === "object" && weatherData) {
+          weatherData.wind_speed = (w.spd != null) ? Math.round(w.spd) : 0;
+          weatherData.wind_direction = (w.dir != null) ? Math.round(w.dir) : 0;
+        }
 
-        const temp = fmtTempC(metar.temp) ?? 'N/A';
-        const dewpoint = fmtTempC(metar.dewp) ?? 'N/A';
+        const windStr = (w.dir != null && w.spd != null)
+          ? `Wind: ${w.dir}° @ ${w.spd} kt${w.gst ? ` (G${w.gst})` : ""}`
+          : "Wind: N/A";
 
-        const altimeter = fmtAltimInHg(metar.altim);
-        const visibility = fmtVisFromMetar(metar);
+        const temp = fmtTempC(metar.temp) ?? "N/A";
+        const dew = fmtTempC(metar.dewp) ?? "N/A";
+        const alt = fmtAltimInHgFromHpa(metar.altim);
+        const vis = fmtVisibility(metar);
 
         const ceilingFt = extractCeilingFt(metar);
         const visNum = (metar.visib != null && isFinite(Number(metar.visib))) ? Number(metar.visib) : null;
 
-        const fltCatApi = (metar.fltcat || metar.fltCat || '').toString().toUpperCase();
-        const flightCat = fltCatApi || calcFlightCategory(visNum, ceilingFt);
+        const flightCat = (metar.fltCat || metar.fltcat || "").toString().toUpperCase()
+          || calcFlightCategory(visNum, ceilingFt);
 
         const parts = [];
-        parts.push(`Wind: ${weatherData.wind_direction}° @ ${weatherData.wind_speed} kt`);
+        parts.push(windStr);
         parts.push(`Temp: ${temp}`);
-        parts.push(`Dewpoint: ${dewpoint}`);
-        if (altimeter) parts.push(`Altimeter: ${altimeter}`);
-        if (visibility) parts.push(`Visibility: ${visibility}`);
+        parts.push(`Dewpoint: ${dew}`);
+        if (alt) parts.push(`Altimeter: ${alt}`);
+        if (vis) parts.push(`Visibility: ${vis}`);
         parts.push(`Flight Cat: ${flightCat}`);
 
-        document.getElementById('awosData').textContent = parts.join(' | ');
+        const el = document.getElementById("awosData");
+        if (el) el.textContent = parts.join(" | ");
 
-        calculateWindComponents();
-        drawRunway();
-      } catch (e) {
+        if (typeof calculateWindComponents === "function") calculateWindComponents();
+        if (typeof drawRunway === "function") drawRunway();
+    }
+
+catch (e) {
         console.error('AWOS fetch error:', e);
         document.getElementById('awosData').textContent = 'Weather data unavailable - ' + e.message;
       }
     }
-
+    }
 
     function calculateWindComponents() {
       const heading = RUNWAY_HEADINGS[currentRunway];
