@@ -1,4 +1,4 @@
-const CACHE_NAME = 'aubie-tracker-v1';
+const CACHE_NAME = 'aubie-tracker-v2';
 const urlsToCache = [
   '/',
   '/index.html',
