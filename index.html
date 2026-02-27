@@ -447,19 +447,23 @@
 
     function windFromMetar(metarObj) {
       if (metarObj?.wdir != null && metarObj?.wspd != null) {
+        // Handle VRB (variable wind)
+        const dirStr = String(metarObj.wdir).toUpperCase();
+        const dir = (dirStr === "VRB") ? null : Number(metarObj.wdir);
         return {
-          dir: Number(metarObj.wdir),
+          dir: isFinite(dir) ? dir : null,
           spd: Number(metarObj.wspd),
-          gst: metarObj.wgst != null ? Number(metarObj.wgst) : null
+          gst: metarObj.wgst != null ? Number(metarObj.wgst) : null,
+          vrb: (dirStr === "VRB")
         };
       }
       const raw = (metarObj?.rawOb || metarObj?.raw_text || "").toString();
       const m = raw.match(/\b(\d{3}|VRB)(\d{2,3})(?:G(\d{2,3}))?KT\b/);
-      if (!m) return { dir: null, spd: null, gst: null };
+      if (!m) return { dir: null, spd: null, gst: null, vrb: false };
       const dir = (m[1] === "VRB") ? null : Number(m[1]);
       const spd = Number(m[2]);
       const gst = m[3] ? Number(m[3]) : null;
-      return { dir: isFinite(dir) ? dir : null, spd: isFinite(spd) ? spd : null, gst: isFinite(gst) ? gst : null };
+      return { dir: isFinite(dir) ? dir : null, spd: isFinite(spd) ? spd : null, gst: isFinite(gst) ? gst : null, vrb: (m[1] === "VRB") };
     }
 
     function calcFlightCategory(visibilitySm, ceilingFt) {
@@ -491,8 +495,8 @@
           weatherData.wind_direction = (w.dir != null) ? Math.round(w.dir) : 0;
         }
 
-        const windStr = (w.dir != null && w.spd != null)
-          ? `Wind: ${w.dir}° @ ${w.spd} kt${w.gst ? ` (G${w.gst})` : ""}`
+        const windStr = (w.spd != null)
+          ? `Wind: ${w.vrb ? "VRB" : (w.dir ?? "N/A")}° @ ${w.spd} kt${w.gst ? ` (G${w.gst})` : ""}`
           : "Wind: N/A";
 
         const temp = fmtTempC(metar.temp) ?? "N/A";
@@ -529,6 +533,15 @@
       const heading = RUNWAY_HEADINGS[currentRunway];
       const windDir = weatherData.wind_direction;
       const windSpeed = weatherData.wind_speed;
+      
+      if (windDir === 0 && windSpeed > 0) {
+        document.getElementById('headwind').textContent = 'VRB';
+        document.getElementById('headwind').style.color = '#e8edf2';
+        document.getElementById('headwindLabel').textContent = 'Wind';
+        document.getElementById('headwindLabel').style.color = '#e8edf2';
+        document.getElementById('crosswind').textContent = 'VRB';
+        return;
+      }
       
       const relativeAngle = (windDir - heading + 360) % 360;
       const angleRad = (relativeAngle * Math.PI) / 180;
@@ -578,14 +591,19 @@
     }
 
     function drawWindArrow(ctx, centerX, centerY, windDir, color, windSpeed, radius) {
-      // Wind arrow points TO where the wind is coming FROM (opposite direction)
+      // Handle VRB (variable) wind
+      if (windDir === 0 && weatherData.wind_direction === 0 && weatherData.wind_speed > 0) {
+        ctx.fillStyle = color;
+        ctx.font = 'bold 12px Share Tech Mono';
+        ctx.textAlign = 'center';
+        ctx.fillText('VRB / ' + Math.round(windSpeed) + ' kts', centerX, centerY - radius - 15);
+        return;
+      }
       const sourceDir = (windDir + 180) % 360;
       const arrowLength = radius * 0.6;
       const arrowX = centerX + Math.sin((sourceDir * Math.PI) / 180) * arrowLength;
       const arrowY = centerY - Math.cos((sourceDir * Math.PI) / 180) * arrowLength;
       drawArrow(ctx, centerX, centerY, arrowX, arrowY, color);
-      
-      // Wind direction and speed above the circle - display actual wind direction (FROM)
       ctx.fillStyle = color;
       ctx.font = 'bold 12px Share Tech Mono';
       ctx.textAlign = 'center';
