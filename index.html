@@ -114,7 +114,7 @@
     .weather-data {
       font-family: 'Share Tech Mono', monospace;
       font-size: 12px;
-      color: #03244D;
+      color: #39ff8a;
       letter-spacing: 0.5px;
       line-height: 1.4;
     }
@@ -135,7 +135,7 @@
     .runway-selector-label {
       font-family: 'Share Tech Mono', monospace;
       font-size: 12px;
-      color: #03244D;
+      color: #39ff8a;
       letter-spacing: 3px;
       margin-bottom: 12px;
       text-align: center;
@@ -205,7 +205,7 @@
       gap: 8px;
       margin-top: 20px;
       font-size: 10px;
-      color: #03244D;
+      color: #39ff8a;
       letter-spacing: 3px;
     }
     .dot {
@@ -279,7 +279,7 @@
       color: #999;
     }
     body.light-theme .weather-data {
-      color: #2ecc71;
+      color: #03244D;
     }
     body.light-theme .runway-diagram {
       background: #f9f9f9;
@@ -313,7 +313,7 @@
       color: #999;
     }
     body.light-theme .runway-selector-label {
-      color: #2ecc71;
+      color: #03244D;
     }
     body.light-theme .footer {
       color: #999;
@@ -325,6 +325,16 @@
     }
     body.light-theme .theme-toggle:hover {
       background: #03244D;
+    }
+    /* Light theme wind colors */
+    body.light-theme #headwind {
+      color: #39ff8a !important;
+    }
+    body.light-theme #crosswind {
+      color: #03244D !important;
+    }
+    body.light-theme .live-badge {
+      color: #03244D;
     }
   </style>
   <link rel="manifest" href="/manifest.json">
@@ -674,9 +684,7 @@
         headwindLabelEl.style.color = '#e8edf2';
       }
       
-      const crosswindEl = document.getElementById('crosswind');
-      crosswindEl.textContent = Math.round(Math.abs(crosswind)) + ' kt';
-      crosswindEl.style.color = '#03244D';
+      document.getElementById('crosswind').textContent = Math.round(Math.abs(crosswind)) + ' kt';
     }
 
     function drawArrow(ctx, fromX, fromY, toX, toY, color) {
