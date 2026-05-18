@@ -65,6 +65,9 @@ app.get("/metar", async (req, res) => {
 
     setCors(req, res);
     res.setHeader("Content-Type", r.headers.get("content-type") || "application/json");
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
     res.status(r.status).send(body);
   } catch (err) {
     setCors(req, res);

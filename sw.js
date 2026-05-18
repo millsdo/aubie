@@ -1,4 +1,4 @@
-const CACHE_NAME = 'aubie-tracker-v2';
+const CACHE_NAME = 'aubie-tracker-v3';
 const urlsToCache = [
   '/',
   '/index.html',
@@ -33,25 +33,35 @@ self.addEventListener('activate', event => {
 
 self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET') return;
-  
+
+  const url = new URL(event.request.url);
+  const isWeatherRequest =
+    url.hostname === 'aubie.onrender.com' ||
+    url.pathname.includes('/metar') ||
+    event.request.cache === 'no-store';
+
+  // Live weather must always go to the network. Do not read from or write to Cache Storage.
+  if (isWeatherRequest) {
+    event.respondWith(fetch(event.request));
+    return;
+  }
+
   event.respondWith(
     caches.match(event.request).then(response => {
       if (response) return response;
-      
+
       return fetch(event.request).then(response => {
         if (!response || response.status !== 200 || response.type === 'error') {
           return response;
         }
-        
+
         const responseToCache = response.clone();
         caches.open(CACHE_NAME).then(cache => {
           cache.put(event.request, responseToCache);
         });
-        
+
         return response;
-      }).catch(() => {
-        return caches.match(event.request);
-      });
+      }).catch(() => caches.match(event.request));
     })
   );
 });
